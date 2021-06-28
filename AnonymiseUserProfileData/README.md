@@ -22,16 +22,29 @@ This PowerShell script allows to anonymise the profile data of a user on Workpla
          'tenant' : 'YOUR-AZURE-TENANT-ID',
          'client_id' : 'YOUR-REGISTERED-APP-ID',
          'client_secret' : 'YOUR-REGISTERED-APP-SECRET',
-         'anonymisation_threshold_in_days' : 90
+         'anonymisation_threshold_in_days' : 90,
+         'anonymisation_lower_threshold_in_days' : 180
    }
    ```
+* Here you have the the details of the parameters to be used in the `accessToken.js` file:
+
+   | Parameter            | Description                                                       |  Type    |  Required    |
+   |:--------------------:|:-----------------------------------------------------------------:|:--------:|:------------:|
+   | accessToken        |  The WP Access Token that you retrieved after creating your Custom Integration                 | _String_ | Yes          |
+   | tenant        |  Azure Tenant ID                 | _String_ | Yes          |
+   | client_id        |  Your registered app ID from Azure                | _String_ | Yes          |
+   | client_secret        |  Your registered app Secret from Azure                | _String_ | Yes          |
+   | anonymisation_threshold_in_days   |  Users whose deletion date on AD is LOWER than the date of today minus this value will be anonymised                        | _int_ | Yes          |
+   | anonymisation_lower_threshold_in_days   |  Users whose deletion date on AD is GREATER than the date of today minus this value will be anonymised                        | _int_ | Yes          |
+
+
 
 ## Run
 
-* Run the script by passing the UserId and `accessToken.js` file as input:
+* Run the script by passing the `accessToken.js` file as input:
 
    ```powershell
-   ./anonymiseUserFromId.ps1 -UserId {UserId} -WPAccessToken accessToken.js
+   ./anonymiseUserFromId.ps1 -WPAccessToken accessToken.js
    ```
 
 ## Parameters
@@ -39,5 +52,4 @@ Here you have the the details of the parameters to be used:
 
    | Parameter            | Description                                                       |  Type    |  Required    |
    |:--------------------:|:-----------------------------------------------------------------:|:--------:|:------------:|
-   | UserId   |  User Id retieved from the user profile URL                         | _int_ | Yes          |
    | WPAccessToken        |  The path for the JSON file with the access token                 | _String_ | Yes          |

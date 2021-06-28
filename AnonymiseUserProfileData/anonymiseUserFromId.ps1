@@ -12,6 +12,7 @@ function GetAccessTokenCredentials
 		$global:clientid = (Get-Content $WPAccessToken | Out-String | ConvertFrom-Json -ErrorAction Stop).client_id
 		$global:clientsecret = (Get-Content $WPAccessToken | Out-String | ConvertFrom-Json -ErrorAction Stop).client_secret
 		$global:anonymthreshold = (Get-Content $WPAccessToken | Out-String | ConvertFrom-Json -ErrorAction Stop).anonymisation_threshold_in_days
+		$global:anonymlowerthreshold = (Get-Content $WPAccessToken | Out-String | ConvertFrom-Json -ErrorAction Stop).anonymisation_lower_threshold_in_days
         Write-Host -NoNewLine "Access Token Credentials - JSON File: "
         Write-Host -ForegroundColor Green "OK, Read!"
     }
@@ -123,7 +124,6 @@ function AuthenticateMSGraphAPI
 	try
 	{
 		# Create a hashtable for the body, the data needed for the token request
-		# The variables used are explained above
 		$Body = @{
 			'tenant' = $global:tenant
 			'client_id' = $global:clientid
@@ -167,12 +167,23 @@ function RetrieveUserDataFromMS
 			'Authorization' = "Bearer $($MSAuthToken)"
 		}
 
-		$Result = Invoke-RestMethod -Uri 'https://graph.microsoft.com/v1.0/directory/deletedItems/microsoft.graph.user?$select=id,displayName,givenName,userPrincipalName,accountEnabled,createdDateTime,deletedDateTime,externalUserStateChangeDateTime
+		$Result = Invoke-RestMethod -Uri 'https://graph.microsoft.com/v1.0/directory/deletedItems/microsoft.graph.user?$select=id,displayName,givenName,userPrincipalName,accountEnabled,createdDateTime,deletedDateTime,externalUserStateChangeDateTime&$top=999
 ' -Headers $Headers
 
-		#Write-Host $Result
+		$deletedUsers = $Result.value
 
-		return $Result.value
+		#Write-Host $Result
+		#Write-Host $Result.value
+		#Write-Host $Result."@odata.nextLink"
+
+		while ($Result."@odata.nextLink") {
+			$Result = Invoke-RestMethod -Uri $Result."@odata.nextLink" -Headers $Headers
+			$deletedUsers += $Result.value
+		}
+
+		#Write-Host $deletedUsers
+
+		return $deletedUsers
 	}
 	catch
 	{
@@ -191,31 +202,49 @@ function AssessAnonymisation
 	try
 	{
 		$TodayDate = Get-Date
-		$TodayMinusThreshold = $TodayDate.AddDays([int]$global:anonymthreshold * -1)
-		Write-Host "Anonymising deleted users that were deleted on AD before " $TodayMinusThreshold
+		$TodayMinusLowerThreshold = $TodayDate.AddDays([int]$global:anonymlowerthreshold * -1)
+		$TodayMinusUpperThreshold = $TodayDate.AddDays([int]$global:anonymthreshold * -1)
+		Write-Host -ForegroundColor Green "Anonymising deleted users that were deleted on AD between $TodayMinusLowerThreshold and $TodayMinusUpperThreshold"
 
 		$AnonymisedUsersCount = 0
+		$NonAnonymisedUsersCount = 0
+
+		if ($DeletedUsers.Count -eq 0) {
+			Write-Host -ForegroundColor Green "No users have been found to anonymise. Process completed."
+			return
+		}
 
 		#Write-Host $DeletedUsers
+		Write-Host -ForegroundColor Green $DeletedUsers.Count "users were identified as deleted in total."
 		$DeletedUsers | ForEach-Object -Process {
+			#Write-Host $_
+			#Write-Host $_.deletedDateTime
+
+			if (!$_.deletedDateTime) { continue }
 
 			$deletionDate = [datetime]::ParseExact($_.deletedDateTime,'MM/dd/yyyy HH:mm:ss', $null)
-			if ($deletionDate -lt $TodayMinusThreshold) {
+			if ($deletionDate -lt $TodayMinusUpperThreshold -and $deletionDate -gt $TodayMinusLowerThreshold) {
 
 				$userDataUrl = "https://www.workplace.com/scim/v1/Users/?filter=externalId%20eq%20%22" + $_.id + "%22"
 
 				#Requesting data of the user to Workplace
 				$results = Invoke-RestMethod -Uri ($userDataUrl) -Headers @{ Authorization = "Bearer " + $global:token } -UserAgent "GithubRep-ProfileAnonymiser"
-				#Write-Host $results.Resources.id
+				#Write-Host $results.Resources
 
-				if (AnonymiseWorkplaceUserProfile -userId $results.id)
+				if ($results.Resources.displayName -eq 'Default User')
+				{
+					$NonAnonymisedUsersCount++
+				}
+				elseif (AnonymiseWorkplaceUserProfile -userId $results.Resources.id)
 				{
 					$AnonymisedUsersCount++
 				}
+			} else {
+				$NonAnonymisedUsersCount++
 			}
 		}
 
-		Write-Host -ForegroundColor Green "$AnonymisedUsersCount users have been anonymised. Process completed."
+		Write-Host -ForegroundColor Green "$AnonymisedUsersCount users have been anonymised and $NonAnonymisedUsersCount were already anonymised or are out of scope. Process COMPLETED."
 	}
 	catch
 	{
