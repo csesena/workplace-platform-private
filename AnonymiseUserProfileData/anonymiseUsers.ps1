@@ -231,7 +231,7 @@ function AssessAnonymisation
 				$results = Invoke-RestMethod -Uri ($userDataUrl) -Headers @{ Authorization = "Bearer " + $global:token } -UserAgent "GithubRep-ProfileAnonymiser"
 				#Write-Host $results.Resources
 
-				if ($results.Resources.displayName -eq 'Default User')
+				if ($results.totalResults -eq 0 -or $results.Resources.displayName -eq 'Default User')
 				{
 					$NonAnonymisedUsersCount++
 				}

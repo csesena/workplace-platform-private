@@ -44,7 +44,7 @@ This PowerShell script allows to anonymise the profile data of a user on Workpla
 * Run the script by passing the `accessToken.js` file as input:
 
    ```powershell
-   ./anonymiseUserFromId.ps1 -WPAccessToken accessToken.js
+   ./anonymiseUsers.ps1 -WPAccessToken accessToken.js
    ```
 
 ## Parameters
